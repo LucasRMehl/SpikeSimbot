@@ -1,6 +1,0 @@
-language: cpp
-compiler:
-  - gcc
-  - clang
-script: ./configure && cmake . && make && ctest
-
