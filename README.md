@@ -1,31 +1,7 @@
-# SpecialKEval
+# SpikeSimbot
 
-SpecialKEval is a lightweight 32-bit Texas Hold'em 5- and 7-card hand evaluator 
-written in C++.
+SpikeSimbot is (or will be) a Texas Hold'em poker bot.  Its name comes from
+[SpecialKEval](https://github.com/kennethshackleton/SpecialKEval), a lightweight
+32-bit Texas Hold'em 5- and 7-card hand evaluator written in C++ by Kenneth
+Shackleton.
 
-## Travis status
-
-[![Build Status](https://travis-ci.org/kennethshackleton/SpecialKEval.svg)](https://travis-ci.org/kennethshackleton/SpecialKEval)
-## Build instructions
-
-From the root directory of the project execute:
-
-```
-./configure && cmake . && make && ctest
-```
-
-This will build the library and run unit tests.
-
-## Example
-
-```
-#include <iostream>
-#include "SevenEval.h"
-
-int main() {
-  SevenEval const eval;
-  // Get the rank of the seven-card spade flush, ace high.
-  std::cout << eval.GetRank(0, 4, 8, 12, 16, 20, 24) << std::endl;
-  return 0;
-}
-```
