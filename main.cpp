@@ -4,86 +4,125 @@
 #include <numeric>
 #include <random>
 #include <algorithm>
+#include <iterator>
+#include <string>
 
 #include "SpecialKEval/SevenEval.h"
 
-const int NUM_GAMES = 100000;
+const int NUM_GAMES = 200000;
 
-int main(int argc, char *argv[])
+// Set up PRNG
+std::random_device RD;
+std::mt19937 PRNG(RD());
+
+SevenEval GAME;
+
+void print_hand(std::vector<int> *deck, int cards_in_play)
 {
-    // Set up PRNG
-    std::random_device rd;
-    std::mt19937 prng(rd());
-
-    // Fill deck with cards (SevenEval expects cards to be numbered 0-52)
-    std::vector<int> deck = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-                             10,11,12,13,14,15,16,17,18,19,
-                             20,21,22,23,24,25,26,27,28,29,
-                             30,31,32,33,34,35,36,37,38,39,
-                             40,41,42,43,44,45,46,47,48,49,
-                             50,51};
-
-	SevenEval game;
-
-
-    int wins = 0, losses = 0, ties = 0;
-    int good_rank, evil_rank;
-
-    for (int n = 0; n < NUM_GAMES; ++n)
+    // 0-3 A, 4-7 K, 8-11 Q, 12-15 J, 16-19 T, 20-23 9, 24-27 8
+    // 28-31 7, 32-35 6, 36-39 5, 40-43 4, 44-47 3, 48-51 2
+    std::string hand = "";
+    for (int idx = 0; idx < cards_in_play; ++idx)
     {
-        // Shuffle cards
-        std::shuffle(deck.begin(), deck.end(), prng);
-
-        // get rank of first seven
-        good_rank = game.GetRank(deck[0],
-                                 deck[1],
-                                 deck[2],
-                                 deck[3],
-                                 deck[4],
-                                 deck[5],
-                                 deck[6]);
-        evil_rank = game.GetRank(deck[7],
-                                 deck[8],
-                                 deck[2],
-                                 deck[3],
-                                 deck[4],
-                                 deck[5],
-                                 deck[6]);
-        //std::cout << "My Rank: " << good_rank << std::endl;
-        //std::cout << "Opponent Rank: " << evil_rank << std::endl;
-        if (good_rank > evil_rank)
+        if (idx == 0)
+            hand += "Hand: ";
+        else if (idx == 2)
+            hand += "\nFlop: ";
+        else if (idx == 5)
+            hand += "\nTurn: ";
+        else if (idx == 6)
+            hand += "\nRiver: ";
+        // So, integer divide by 4 for value...
+        int card_idx = (*deck)[idx];
+        switch (card_idx / 4)
         {
-            //std::cout << "I won!" << std::endl;
-            ++wins;
+            case 0:
+                hand += "A";
+                break;
+            case 1:
+                hand += "K";
+                break;
+            case 2:
+                hand += "Q";
+                break;
+            case 3:
+                hand += "J";
+                break;
+            case 4:
+                hand += "T";
+                break;
+            default:
+                hand += std::to_string(14-(card_idx/4));
+                break;
         }
-        else if (evil_rank > good_rank)
+        // ...and mod 4 for suit
+        switch (card_idx % 4)
         {
-            //std::cout << "I lost. :(" << std::endl;
-            ++losses;
-        }
-        else
-        {
-            //std::cout << "We tied...somehow..." << std::endl;
-            ++ties;
+            case 0:
+                hand += "s ";
+                break;
+            case 1:
+                hand += "h ";
+                break;
+            case 2:
+                hand += "d ";
+                break;
+            case 3:
+                hand += "c ";
+                break;
+            default:
+                std::cout << "Something went very, very wrong." << std::endl;
+                break;
         }
     }
 
-    std::cout << "Win percentage: " << 100.0f * ((float)wins/(float)NUM_GAMES) << "%" << std::endl;
-    std::cout << "Loss percentage: " << 100.0f * ((float)losses/(float)NUM_GAMES) << "%" << std::endl;
-    std::cout << "Tie percentage: " << 100.0f * ((float)ties/(float)NUM_GAMES) << "%" << std::endl;
-/*
-    // Check highest number rank
-    std::cout << "0,1,2,3,4,5,6: " << game.GetRank(0,1,2,3,4,5,6) << std::endl;
+    std::cout << hand << std::endl;
+}
 
-    // Check spade flush rank 1
-    std::cout << "0,4,8,12,16,20,24: " << game.GetRank(0,4,8,12,16,20,24) << std::endl;
+float simulate(std::vector<int> *deck, int cards_in_play, int num_runs)
+{
+    auto deck_it = deck->begin();
+    int wins = 0, losses = 0, ties = 0;
+    int good_rank, evil_rank;
+    for (int n = 0; n < num_runs; ++n)
+    {
+        // Advance iterator to avoid shuffling the cards in play
+        deck_it = deck->begin();
+        std::advance(deck_it, cards_in_play);
+        std::shuffle(deck_it, deck->end(), PRNG);
 
-    // Check spade flush rank 2
-    std::cout << "4,8,12,16,20,24,28: " << game.GetRank(4,8,12,16,20,24,28) << std::endl;
+        // get rank of my and opponent's seven cards
+        good_rank = GAME.GetRank((*deck)[0],(*deck)[1],(*deck)[2],(*deck)[3],(*deck)[4],(*deck)[5],(*deck)[6]);
+        evil_rank = GAME.GetRank((*deck)[7],(*deck)[8],(*deck)[2],(*deck)[3],(*deck)[4],(*deck)[5],(*deck)[6]);
 
-    // Check heart(?) flush rank 1
-    std::cout << "1,5,9,13,17,21,25: " << game.GetRank(1,5,9,13,17,21,25) << std::endl;
-*/
+        if (good_rank > evil_rank)
+            ++wins;
+        else if (evil_rank > good_rank)
+            ++losses;
+        else
+            ++ties;
+    }
+
+    return (static_cast<float>(wins)/num_runs);
+}
+
+int main(int argc, char *argv[])
+{
+    // Fill deck with cards (SevenEval expects cards to be numbered 0-52)
+    std::vector<int> deck(52);
+    std::iota(deck.begin(), deck.end(), 0);
+
+    // Shuffle deck once
+    std::shuffle(deck.begin(), deck.end(), PRNG);
+
+    // Set up sim
+    int cards_in_play = 2;
+
+    float win_pct = simulate(&deck, cards_in_play, NUM_GAMES);
+
+    print_hand(&deck, cards_in_play);
+
+    std::cout << "Win percentage: " << 100.0f * win_pct << "%" << std::endl;
 
 	return 0;
 }
