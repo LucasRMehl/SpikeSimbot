@@ -21,6 +21,7 @@ class Bot
         int opponentStack;
         std::string playerHand;
         std::string opponentHand; // We'll never get this, but the spec allows it
+        bool alreadyRaised;
 
         // Match Settings
         std::string botName;

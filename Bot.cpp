@@ -28,13 +28,12 @@ const std::vector<int> FULLDECK = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
                                    46,47,48,49,50,51};
 
 // Set up PRNG
-std::random_device RD;
-std::mt19937 PRNG(RD());
+std::mt19937 PRNG;  // (server didn't like std::random_device)
 
 // Set up hand ranking lib
 SevenEval EVAL;
 
-const int NUM_GAMES = 100000;
+const int NUM_GAMES = 5000;
 
 void Bot::run()
 {
@@ -66,6 +65,75 @@ void Bot::run()
 void Bot::executeAction()
 {
     /* Do AI! */
+    // Before the flop, just make a simple judgment
+    // Top 15 hands: AA,KK,QQ,AKs,JJ,TT,AQs,AJs,AKo,KQs,ATs,KJs,AQo,99,JQs
+    if (this->alreadyRaised)
+    {
+        std::cerr << "Already raised this turn, calling...\n";
+        std::cout << "call 0\n";
+    }
+    int ntc = this->tableCards.size();
+    if (ntc == 0)
+    {
+        std::cerr << "Before the flop simple bot.\n";
+        int c1 = this->handCards[0];
+        int c2 = this->handCards[1];
+        if ((c1/4 == c2/4) && c1<4) // AA
+        {
+            std::cerr << "Ace pair! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << this->myStack << "\n";
+        }
+        else if ((c1/4 == c2/4) && c1<12) // KK or QQ
+        {
+            std::cerr << "High pair! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/4) << "\n";
+        }
+        else if ((c1%4 == c2%4) && (c1<4 || c2<4) && (c1<20 || c2<20)) // Ax suited (where x is J or better)
+        {
+            std::cerr << "Ace high suited! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/5) << "\n";
+        }
+        else if ((c1/4 == c2/4) && c1<24) // JJ or TT
+        {
+            std::cerr << "JJ or TT! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/6) << "\n";
+        }
+        else if ((c1<4 && c2<12) || (c1<12 && c2<4)) // AK or AQ off suit
+        {
+            std::cerr << "Ace high off-suit! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/7) << "\n";
+        }
+        else if ((c1/4 == c2/4) && c1<28) // 99
+        {
+            std::cerr << "99! c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/8) << "\n";
+        }
+        else if ((c1%4 == c2%4) && (c1<8 || c2<8) && (c1<20 || c2<20)) // Kx suited (where x is J or better)
+        {
+            std::cerr << "King high suited. c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "raise " << (this->myStack/10) << "\n";
+        }
+        else if (c1/4 == c2/4) // any pair
+        {
+            std::cerr << "Low pair. c1, c2 = " << c1 << "," << c2 << "\n";
+            std::cout << "call 0\n";
+        }
+        else if (this->amountToCall > 40)
+        {
+            if (c1>=28 && c2>=28)
+            {
+                std::cerr << "Crappy cards, I'm out. c1, c2 = " << c1 << "," << c2 << "\n";
+                std::cout << "fold 0\n";
+            }
+        }
+        else
+        {
+            std::cerr << "Eh, let's do this.\n";
+            std::cout << "call 0\n";
+        }
+        return;
+    }
+
     // Build vector of unknownCards (could probably keep track of these...)
     std::vector<int> unknownCards = FULLDECK;
     std::vector<int>::iterator deck_end;
@@ -81,7 +149,10 @@ void Bot::executeAction()
     // 
     std::vector<int> evalDeck = this->tableCards;
     evalDeck.insert(evalDeck.end(), unknownCards.begin(), deck_end);
-    int ntc = this->tableCards.size();
+
+    std::cerr << "1. My hand: " << this->playerHand << "\n";
+    std::cerr << "2. Cards on table: " << this->table << "\n";
+    std::cerr << "3. Running simulations..." << std::endl;
 
     for (int n = 0; n < NUM_GAMES; ++n)
     {
@@ -112,52 +183,90 @@ void Bot::executeAction()
     }
 
     float win_pct = 100.0f * static_cast<float>(wins)/NUM_GAMES;
+    std::cerr << "4. Win percentage = " << win_pct << "\n";
 
     // Now make some decisions.
     if (this->myStack + this->currentBet < 300)
     {
         if (win_pct > 90.0f)
-            std::cout << "raise " << this->myStack << std::endl;
+        {
+            std::cout << "raise " << this->myStack << "\n";
+            std::cerr << "Going all in!\n";
+        }
         else if (win_pct > 75.0f)
         {
             if ( (this->currentBet + this->amountToCall) < (this->myStack/2) )
-                std::cout << "raise " << (this->myStack/2 - this->currentBet) << std::endl;
+            {
+                std::cout << "raise " << (this->myStack/2 - this->currentBet) << "\n";
+                std::cerr << "Raising!\n";
+            }
             else
-                std::cout << "call 0" << std::endl;
+            {
+                std::cout << "call 0" << "\n";
+                std::cerr << "Call!\n";
+            }
         }
         else
         {
-            if (this->amountToCall < win_pct/2)
-                std::cout << "call 0" << std::endl;
+            if (this->amountToCall < win_pct/2 || this->amountToCall < this->currentBet/5)
+            {
+                std::cout << "call 0" << "\n";
+                std::cerr << "Call!\n";
+            }
             else
-                std::cout << "fold 0" << std::endl;
+            {
+                std::cout << "fold 0" << "\n";
+                std::cerr << "I'm out!\n";
+            }
         }
         return;
     }
     else //if (this->myStack + this->currentBet < 1800)
     {
         if (win_pct > 95.0f)
-            std::cout << "raise " << this->myStack << std::endl;
+        {
+            std::cout << "raise " << this->myStack << "\n";
+            std::cerr << "Going all in!\n";
+        }
         else if (win_pct > 80.0f)
         {
             if ( (this->currentBet + this->amountToCall) < (this->myStack/4) )
-                std::cout << "raise " << (this->myStack/4 - this->currentBet) << std::endl;
+            {
+                std::cout << "raise " << (this->myStack/4 - this->currentBet) << "\n";
+                std::cerr << "Raise!\n";
+            }
             else
-                std::cout << "call 0" << std::endl;
+            {
+                std::cout << "call 0" << "\n";
+                std::cerr << "Call!\n";
+            }
         }
         else if (win_pct > 60.0f)
         {
             if ( (this->currentBet + this->amountToCall) < (this->myStack/8) )
-                std::cout << "raise " << (this->myStack/8 - this->currentBet) << std::endl;
+            {
+                std::cout << "raise 40\n";
+                std::cerr << "Raise!\n";
+            }
             else
-                std::cout << "call 0" << std::endl;
+            {
+                std::cout << "call 0" << "\n";
+                std::cerr << "Call!\n";
+            }
         }
         else
         {
-            if (this->amountToCall < win_pct/2)
-                std::cout << "call 0" << std::endl;
+            if (this->amountToCall < win_pct*2 || this->amountToCall < this->currentBet/4)
+            {
+                std::cout << "call 0" << "\n";
+                std::cerr << "Call!\n";
+            }
             else
-                std::cout << "fold 0" << std::endl;
+            {
+                std::cout << "fold 0" << "\n";
+                std::cerr << "I'm out!\n";
+
+            }
         }
         return;
     }
@@ -213,6 +322,8 @@ void Bot::parsePlayerMove()
         this->currentBet += value;
         this->myStack -= value;
         this->pot += value;
+        // Don't let the bot raise over and over!
+        this->alreadyRaised = true;
     }
     else if (move == "wins")
     {
@@ -279,7 +390,7 @@ void Bot::parseOpponentMove()
     {
         std::cin >> table;
         std::cerr << "Unsupported player output: " << this->opponentBotName
-                  << " " << move << " " << table << std::endl;
+                  << " " << move << " " << table << "\n";
     }
 }
 
@@ -296,6 +407,9 @@ void Bot::parseMatch()
         std::cin >> value;
         this->opponentStatus ="inPlay";
         this->roundPlaying = value;
+        this->tableCards.clear();
+        this->alreadyRaised = false;
+        std::cerr << "Round " << value << "\n";
     }
     else if (matchType == "small_blind")
     {
@@ -317,6 +431,7 @@ void Bot::parseMatch()
         std::cin >> cardsOnTable;
         this->table = cardsOnTable;
         this->tableCards = this->parseCards(cardsOnTable, this->tableCards);
+        this->alreadyRaised = false;
     }
     else if (matchType == "max_win_pot")
     {
@@ -332,7 +447,7 @@ void Bot::parseMatch()
     {
         std::cin >> cardsOnTable;
         std::cerr << "Unsupported Match output: Match "
-                  << matchType << " " << table << std::endl;
+                  << matchType << " " << table << "\n";
     }       
 }
 
@@ -341,7 +456,7 @@ void Bot::parseSettings()
     std::string settingType, botNameIn;
     int value;
     std::cin >> settingType;
-    if (settingType == "time_bank")
+    if (settingType == "timebank")
     {
         std::cin >> value;
         this->timeBank = value;
@@ -374,17 +489,20 @@ void Bot::parseSettings()
     {
         std::cin >> botNameIn;
         std::cerr << "Unsupported Settings output: Settings "
-                  << settingType << " " << botNameIn << std::endl;
+                  << settingType << " " << botNameIn << "\n";
     }  
 }
 
-std::vector<int>& Bot::parseCards(std::string &cards, std::vector<int> &v_idxs)
+std::vector<int>& Bot::parseCards(std::string& cards, std::vector<int> &v_idxs)
 {
     // Splits the string at the commas and builds the passed in vector
     v_idxs.clear();
-    std::istringstream ss(cards);
+    // ignore brackets
+    std::string substr = cards.substr(1, cards.length()-2);
+    std::istringstream ss(substr);
     std::string token;
     while(std::getline(ss, token, ',')) {
+        std::cerr << "Card: " << token << ", Index: " << CARD_IDX_MAP[token] << "\n";
         v_idxs.push_back(CARD_IDX_MAP[token]);
     }
     return v_idxs;
